@@ -3,7 +3,18 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
   <title>階層Todo</title>
+
+  <!-- iPhoneホーム画面用アイコン -->
+  <link rel="apple-touch-icon" href="./apple-touch-icon.png">
+  <link rel="icon" type="image/png" href="./apple-touch-icon.png">
+
+  <!-- iPhone Webアプリ化設定 -->
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="階層Todo">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+
   <style>
     body {
       margin: 0;
@@ -61,6 +72,10 @@
       background: #dc2626;
     }
 
+    .gray {
+      background: #6b7280;
+    }
+
     .small {
       font-size: 13px;
       padding: 6px 8px;
@@ -70,6 +85,7 @@
     .todo-list {
       list-style: none;
       padding-left: 0;
+      margin: 0;
     }
 
     .children {
@@ -135,6 +151,11 @@
       grid-template-columns: 1fr 120px 70px;
     }
 
+    .move-buttons {
+      display: flex;
+      gap: 4px;
+    }
+
     @media (max-width: 600px) {
       .add-area,
       .child-form.show {
@@ -147,6 +168,14 @@
 
       .todo-title {
         flex-basis: 100%;
+      }
+
+      .move-buttons {
+        width: 100%;
+      }
+
+      .move-buttons button {
+        flex: 1;
       }
     }
   </style>
@@ -215,6 +244,7 @@
     if (!title) return;
 
     const parent = findTodoById(todos, parentId);
+
     if (parent) {
       parent.children.push(createTodo(title, select.value));
     }
@@ -230,14 +260,49 @@
       const found = findTodoById(todo.children, id);
       if (found) return found;
     }
+
     return null;
+  }
+
+  function findListContainingTodo(list, id) {
+    for (const todo of list) {
+      if (todo.id === id) {
+        return list;
+      }
+
+      const found = findListContainingTodo(todo.children, id);
+      if (found) return found;
+    }
+
+    return null;
+  }
+
+  function moveTodo(id, direction) {
+    const list = findListContainingTodo(todos, id);
+    if (!list) return;
+
+    const index = list.findIndex(todo => todo.id === id);
+    if (index === -1) return;
+
+    const newIndex = index + direction;
+
+    if (newIndex < 0 || newIndex >= list.length) return;
+
+    const temp = list[index];
+    list[index] = list[newIndex];
+    list[newIndex] = temp;
+
+    saveTodos();
+    renderTodos();
   }
 
   function toggleDone(id) {
     const todo = findTodoById(todos, id);
+
     if (todo) {
       todo.done = !todo.done;
     }
+
     saveTodos();
     renderTodos();
   }
@@ -291,8 +356,20 @@
       li.innerHTML = `
         <div class="todo-box ${getPriorityClass(todo.priority)}">
           <input type="checkbox" ${todo.done ? "checked" : ""} onchange="toggleDone(${todo.id})">
-          <span class="todo-title ${todo.done ? "done" : ""}">${escapeHtml(todo.title)}</span>
-          <span class="priority-label">優先度：${getPriorityText(todo.priority)}</span>
+
+          <span class="todo-title ${todo.done ? "done" : ""}">
+            ${escapeHtml(todo.title)}
+          </span>
+
+          <span class="priority-label">
+            優先度：${getPriorityText(todo.priority)}
+          </span>
+
+          <div class="move-buttons">
+            <button class="small gray" onclick="moveTodo(${todo.id}, -1)">↑</button>
+            <button class="small gray" onclick="moveTodo(${todo.id}, 1)">↓</button>
+          </div>
+
           <button class="small" onclick="toggleChildForm(${todo.id})">子Todo</button>
           <button class="small danger" onclick="deleteTodo(${todo.id})">削除</button>
         </div>
