@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>階層Todo</title>
+  <style>
+    body {
+      margin: 0;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+      background: #f4f6f8;
+      color: #222;
+    }
+
+    header {
+      background: #1f2937;
+      color: white;
+      padding: 18px;
+      text-align: center;
+    }
+
+    main {
+      max-width: 900px;
+      margin: 20px auto;
+      padding: 0 14px;
+    }
+
+    .card {
+      background: white;
+      border-radius: 14px;
+      padding: 16px;
+      box-shadow: 0 4px 14px rgba(0,0,0,0.08);
+      margin-bottom: 16px;
+    }
+
+    .add-area {
+      display: grid;
+      grid-template-columns: 1fr 130px 90px;
+      gap: 8px;
+    }
+
+    input, select, button {
+      font-size: 16px;
+      padding: 10px;
+      border-radius: 10px;
+      border: 1px solid #ccc;
+    }
+
+    button {
+      border: none;
+      background: #2563eb;
+      color: white;
+      cursor: pointer;
+    }
+
+    button:hover {
+      opacity: 0.9;
+    }
+
+    .danger {
+      background: #dc2626;
+    }
+
+    .small {
+      font-size: 13px;
+      padding: 6px 8px;
+      border-radius: 8px;
+    }
+
+    .todo-list {
+      list-style: none;
+      padding-left: 0;
+    }
+
+    .children {
+      list-style: none;
+      padding-left: 28px;
+      border-left: 2px solid #ddd;
+      margin-top: 8px;
+    }
+
+    .todo-item {
+      margin: 10px 0;
+    }
+
+    .todo-box {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: #f9fafb;
+      border-radius: 12px;
+      padding: 10px;
+      border-left: 8px solid #999;
+    }
+
+    .todo-title {
+      flex: 1;
+      word-break: break-word;
+    }
+
+    .done {
+      text-decoration: line-through;
+      color: #888;
+    }
+
+    .priority-high {
+      border-left-color: #ef4444;
+    }
+
+    .priority-middle {
+      border-left-color: #f59e0b;
+    }
+
+    .priority-low {
+      border-left-color: #22c55e;
+    }
+
+    .priority-label {
+      font-size: 12px;
+      padding: 3px 7px;
+      border-radius: 999px;
+      background: #e5e7eb;
+      white-space: nowrap;
+    }
+
+    .child-form {
+      display: none;
+      margin-top: 8px;
+      padding-left: 20px;
+      gap: 6px;
+    }
+
+    .child-form.show {
+      display: grid;
+      grid-template-columns: 1fr 120px 70px;
+    }
+
+    @media (max-width: 600px) {
+      .add-area,
+      .child-form.show {
+        grid-template-columns: 1fr;
+      }
+
+      .todo-box {
+        flex-wrap: wrap;
+      }
+
+      .todo-title {
+        flex-basis: 100%;
+      }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>階層Todo</h1>
+</header>
+
+<main>
+  <section class="card">
+    <h2>Todoを追加</h2>
+    <div class="add-area">
+      <input id="todoInput" type="text" placeholder="例：期末テスト対策をする" />
+      <select id="priorityInput">
+        <option value="high">高</option>
+        <option value="middle" selected>中</option>
+        <option value="low">低</option>
+      </select>
+      <button onclick="addTodo()">追加</button>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>Todo一覧</h2>
+    <ul id="todoList" class="todo-list"></ul>
+  </section>
+</main>
+
+<script>
+  let todos = JSON.parse(localStorage.getItem("hierarchyTodos")) || [];
+
+  function saveTodos() {
+    localStorage.setItem("hierarchyTodos", JSON.stringify(todos));
+  }
+
+  function createTodo(title, priority) {
+    return {
+      id: Date.now() + Math.random(),
+      title,
+      priority,
+      done: false,
+      children: []
+    };
+  }
+
+  function addTodo() {
+    const input = document.getElementById("todoInput");
+    const priority = document.getElementById("priorityInput").value;
+    const title = input.value.trim();
+
+    if (!title) return;
+
+    todos.push(createTodo(title, priority));
+    input.value = "";
+    saveTodos();
+    renderTodos();
+  }
+
+  function addChildTodo(parentId) {
+    const input = document.getElementById(`child-input-${parentId}`);
+    const select = document.getElementById(`child-priority-${parentId}`);
+    const title = input.value.trim();
+
+    if (!title) return;
+
+    const parent = findTodoById(todos, parentId);
+    if (parent) {
+      parent.children.push(createTodo(title, select.value));
+    }
+
+    saveTodos();
+    renderTodos();
+  }
+
+  function findTodoById(list, id) {
+    for (const todo of list) {
+      if (todo.id === id) return todo;
+
+      const found = findTodoById(todo.children, id);
+      if (found) return found;
+    }
+    return null;
+  }
+
+  function toggleDone(id) {
+    const todo = findTodoById(todos, id);
+    if (todo) {
+      todo.done = !todo.done;
+    }
+    saveTodos();
+    renderTodos();
+  }
+
+  function deleteTodo(id) {
+    todos = deleteTodoFromList(todos, id);
+    saveTodos();
+    renderTodos();
+  }
+
+  function deleteTodoFromList(list, id) {
+    return list
+      .filter(todo => todo.id !== id)
+      .map(todo => ({
+        ...todo,
+        children: deleteTodoFromList(todo.children, id)
+      }));
+  }
+
+  function toggleChildForm(id) {
+    const form = document.getElementById(`child-form-${id}`);
+    form.classList.toggle("show");
+  }
+
+  function getPriorityText(priority) {
+    if (priority === "high") return "高";
+    if (priority === "middle") return "中";
+    return "低";
+  }
+
+  function getPriorityClass(priority) {
+    if (priority === "high") return "priority-high";
+    if (priority === "middle") return "priority-middle";
+    return "priority-low";
+  }
+
+  function renderTodos() {
+    const list = document.getElementById("todoList");
+    list.innerHTML = "";
+    list.appendChild(renderTodoList(todos));
+  }
+
+  function renderTodoList(todoArray) {
+    const ul = document.createElement("ul");
+    ul.className = "todo-list";
+
+    todoArray.forEach(todo => {
+      const li = document.createElement("li");
+      li.className = "todo-item";
+
+      li.innerHTML = `
+        <div class="todo-box ${getPriorityClass(todo.priority)}">
+          <input type="checkbox" ${todo.done ? "checked" : ""} onchange="toggleDone(${todo.id})">
+          <span class="todo-title ${todo.done ? "done" : ""}">${escapeHtml(todo.title)}</span>
+          <span class="priority-label">優先度：${getPriorityText(todo.priority)}</span>
+          <button class="small" onclick="toggleChildForm(${todo.id})">子Todo</button>
+          <button class="small danger" onclick="deleteTodo(${todo.id})">削除</button>
+        </div>
+
+        <div id="child-form-${todo.id}" class="child-form">
+          <input id="child-input-${todo.id}" type="text" placeholder="子Todoを追加">
+          <select id="child-priority-${todo.id}">
+            <option value="high">高</option>
+            <option value="middle" selected>中</option>
+            <option value="low">低</option>
+          </select>
+          <button onclick="addChildTodo(${todo.id})">追加</button>
+        </div>
+      `;
+
+      if (todo.children.length > 0) {
+        const childWrapper = document.createElement("ul");
+        childWrapper.className = "children";
+        childWrapper.appendChild(renderTodoList(todo.children));
+        li.appendChild(childWrapper);
+      }
+
+      ul.appendChild(li);
+    });
+
+    return ul;
+  }
+
+  function escapeHtml(text) {
+    return text
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#039;");
+  }
+
+  renderTodos();
+</script>
+
+</body>
+</html>
